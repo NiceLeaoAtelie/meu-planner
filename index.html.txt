@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Planner Pro - Prazos e Datas</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --success: #27ae60;
+            --danger: #e74c3c;
+            --light: #ecf0f1;
+            --warning: #f39c12;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        h1 { color: var(--primary); text-align: center; margin-bottom: 30px; }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 2fr 1.5fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        input {
+            padding: 12px;
+            border: 2px solid var(--light);
+            border-radius: 6px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        #add-btn { background: var(--accent); color: white; flex-grow: 2; }
+        #save-btn { background: var(--success); color: white; flex-grow: 1; }
+        #clear-btn { background: var(--danger); color: white; }
+
+        button:hover { opacity: 0.8; }
+
+        .task-list { list-style: none; padding: 0; }
+
+        .task-item {
+            background: #fff;
+            border: 1px solid #eee;
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: 40px 1fr 200px 120px;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .task-item.completed { background-color: #dff9fb; opacity: 0.8; border-left: 5px solid var(--success); }
+        .task-item.completed span { text-decoration: line-through; color: #95a5a6; }
+
+        .deadline-info {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+        }
+
+        .timer-display {
+            font-family: monospace;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--primary);
+            text-align: center;
+        }
+
+        .is-overdue { 
+            border: 2px solid var(--danger);
+            background-color: #fff5f5;
+        }
+
+        .overdue-text { 
+            color: var(--danger) !important; 
+            font-weight: bold;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink { 50% { opacity: 0.4; } }
+
+        .controls button { padding: 8px; font-size: 0.8rem; width: 100%; }
+        
+        label { font-size: 12px; color: var(--primary); font-weight: bold; margin-bottom: 5px; display: block;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📅 Meu Smart Planner (Prazos)</h1>
+
+    <div class="input-group">
+        <div>
+            <label>O que fazer?</label>
+            <input type="text" id="taskName" placeholder="Ex: Gestão de Estoque" style="width: 90%;">
+        </div>
+        <div>
+            <label>Data e Hora Limite</label>
+            <input type="datetime-local" id="taskDeadline" style="width: 90%;">
+        </div>
+        <div style="display: flex; align-items: flex-end;">
+            <button id="add-btn" onclick="addTask()">➕ Adicionar</button>
+        </div>
+    </div>
+    
+    <div class="action-buttons">
+        <button id="save-btn" onclick="saveToStorage()">💾 Salvar Dados</button>
+        <button id="clear-btn" onclick="clearAll()">🗑️ Limpar Planner</button>
+    </div>
+
+    <ul id="taskList" class="task-list"></ul>
+</div>
+
+<script>
+    let tasks = [];
+
+    // Carregar dados e iniciar atualização visual
+    window.onload = function() {
+        const saved = localStorage.getItem('myDeadlineTasks');
+        if (saved) {
+            tasks = JSON.parse(saved);
+            renderTasks();
+        }
+        // Atualiza a tela a cada 1 segundo para verificar atrasos em tempo real
+        setInterval(renderTasks, 1000);
+    };
+
+    function addTask() {
+        const name = document.getElementById('taskName').value;
+        const deadline = document.getElementById('taskDeadline').value;
+
+        if (!name || !deadline) {
+            alert("Por favor, preencha o nome e a data/hora limite!");
+            return;
+        }
+
+        const newTask = {
+            id: Date.now(),
+            name: name,
+            deadline: deadline, // Salva como string ISO do input
+            completed: false,
+            createdAt: new Date().toISOString()
+        };
+
+        tasks.push(newTask);
+        renderTasks();
+        
+        document.getElementById('taskName').value = '';
+        document.getElementById('taskDeadline').value = '';
+    }
+
+    function renderTasks() {
+        const list = document.getElementById('taskList');
+        list.innerHTML = '';
+        const now = new Date();
+
+        tasks.forEach(task => {
+            const deadlineDate = new Date(task.deadline);
+            const isOverdue = now > deadlineDate && !task.completed;
+            
+            // Formatar data para exibição brasileira
+            const formattedDeadline = deadlineDate.toLocaleString('pt-BR');
+
+            const li = document.createElement('li');
+            li.className = `task-item ${task.completed ? 'completed' : ''} ${isOverdue ? 'is-overdue' : ''}`;
+            
+            li.innerHTML = `
+                <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleComplete(${task.id})">
+                <div>
+                    <span><strong>${task.name}</strong></span><br>
+                    <span class="deadline-info">Prazo: ${formattedDeadline}</span>
+                </div>
+                <div class="timer-display ${isOverdue ? 'overdue-text' : ''}">
+                    ${isOverdue ? '🚨 ATRASADA' : task.completed ? '✅ CONCLUÍDA' : '⏳ EM DIA'}
+                </div>
+                <div class="controls">
+                    <button onclick="deleteTask(${task.id})" style="background:#bdc3c7; color:white;">Remover</button>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    function toggleComplete(id) {
+        const task = tasks.find(t => t.id === id);
+        task.completed = !task.completed;
+        renderTasks();
+    }
+
+    function deleteTask(id) {
+        tasks = tasks.filter(t => t.id !== id);
+        renderTasks();
+    }
+
+    function saveToStorage() {
+        localStorage.setItem('myDeadlineTasks', JSON.stringify(tasks));
+        alert("✅ Prazos salvos com sucesso!");
+    }
+
+    function clearAll() {
+        if (confirm("Deseja apagar todas as tarefas?")) {
+            tasks = [];
+            localStorage.removeItem('myDeadlineTasks');
+            renderTasks();
+        }
+    }
+</script>
+
+</body>
+</html>
